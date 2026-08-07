@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PipelineWatch</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; background: #0f1115; color: #e6e6e6; margin: 0; padding: 40px; }
+    h1 { color: #58a6ff; }
+    .subtitle { color: #8b949e; margin-bottom: 30px; }
+    .failure-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .failure-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .repo-name { font-weight: 600; color: #58a6ff; }
+    .timestamp { color: #8b949e; font-size: 0.85em; }
+    .summary { line-height: 1.5; margin: 10px 0; }
+    .run-link { color: #58a6ff; text-decoration: none; font-size: 0.9em; }
+    .run-link:hover { text-decoration: underline; }
+    .empty-state { color: #8b949e; text-align: center; padding: 60px 0; }
+  </style>
+</head>
+<body>
+  <h1>🔍 PipelineWatch</h1>
+  <div class="subtitle">AI-analyzed CI/CD failures for {{ failures|length }} recorded incident(s)</div>
+
+  {% if failures %}
+    {% for f in failures %}
+    <div class="failure-card">
+      <div class="failure-header">
+        <span class="repo-name">{{ f.repo }} — {{ f.workflow_name }}</span>
+        <span class="timestamp">{{ f.created_at }}</span>
+      </div>
+      <div class="summary">{{ f.summary }}</div>
+      <a class="run-link" href="{{ f.run_url }}" target="_blank">View run on GitHub →</a>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty-state">No failures recorded yet.</div>
+  {% endif %}
+</body>
+</html>

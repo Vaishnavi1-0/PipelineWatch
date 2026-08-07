@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.templating import Jinja2Templates
 import hmac, hashlib, os
 from dotenv import load_dotenv
 from log_analyzer import analyze_failure
@@ -7,6 +8,7 @@ from models import init_db, save_failure, get_failures
 load_dotenv()
 
 app = FastAPI(title="PipelineWatch")
+templates = Jinja2Templates(directory="templates")
 
 GITHUB_WEBHOOK_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
 
@@ -57,3 +59,11 @@ async def github_webhook(request: Request):
 @app.get("/failures")
 def list_failures():
     return get_failures()
+
+@app.get("/dashboard")
+def dashboard(request: Request):
+    failures = get_failures()
+    return templates.TemplateResponse(
+        "dashboard.html",
+        {"request": request, "failures": failures}
+    )
