@@ -14,16 +14,22 @@ async def fetch_run_log(repo: str, run_id: int) -> str:
 
     async with httpx.AsyncClient() as http:
         resp = await http.get(url, headers=headers)
+        print(f"DEBUG: GitHub API status code: {resp.status_code}")
+        print(f"DEBUG: GitHub API raw response: {resp.text[:1000]}")
         resp.raise_for_status()
         jobs = resp.json()["jobs"]
 
     failed_steps = []
     for job in jobs:
+        print(f"DEBUG: job name={job['name']} conclusion={job.get('conclusion')}")
         for step in job.get("steps", []):
+            print(f"DEBUG:   step name={step['name']} conclusion={step.get('conclusion')}")
             if step.get("conclusion") == "failure":
                 failed_steps.append(f"Job: {job['name']} | Step: {step['name']}")
 
-    return "\n".join(failed_steps) or "No step-level detail available."
+    result = "\n".join(failed_steps) or "No step-level detail available."
+    print(f"DEBUG: final log_snippet = {result}")
+    return result
 
 async def analyze_failure(repo: str, run_id: int) -> str:
     log_snippet = await fetch_run_log(repo, run_id)
