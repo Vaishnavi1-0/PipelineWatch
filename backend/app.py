@@ -1,20 +1,36 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.templating import Jinja2Templates
-import hmac, hashlib, os
+import hmac, hashlib, os, logging
 from dotenv import load_dotenv
 from log_analyzer import analyze_failure
 from models import init_db, save_failure, get_failures
+from queue_client import publish_failure_event
 
 load_dotenv()
+
+LOG_DIR = os.path.join(os.path.dirname(__file__), "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [app] %(levelname)s %(message)s",
+    handlers=[
+        logging.FileHandler(os.path.join(LOG_DIR, "app.log")),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger("pipelinewatch.app")
 
 app = FastAPI(title="PipelineWatch")
 templates = Jinja2Templates(directory="templates")
 
 GITHUB_WEBHOOK_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
+RABBITMQ_URL = os.getenv("RABBITMQ_URL", "")
 
 @app.on_event("startup")
 def on_startup():
     init_db()
+    logger.info("PipelineWatch API started")
 
 def verify_signature(payload_body: bytes, signature_header: str):
     if not signature_header:
@@ -39,22 +55,26 @@ async def github_webhook(request: Request):
     if run.get("conclusion") != "failure":
         return {"status": "ignored, not a failure"}
 
-    repo = payload["repository"]["full_name"]
-    run_id = run["id"]
-    run_url = run["html_url"]
-    workflow_name = run["name"]
+    event = {
+        "repo": payload["repository"]["full_name"],
+        "run_id": run["id"],
+        "run_url": run["html_url"],
+        "workflow_name": run["name"],
+    }
 
-    summary = await analyze_failure(repo, run_id)
-
-    save_failure(
-        repo=repo,
-        run_id=run_id,
-        workflow_name=workflow_name,
-        run_url=run_url,
-        summary=summary,
-    )
-
-    return {"status": "analyzed", "summary": summary}
+    if RABBITMQ_URL:
+        logger.info(f"Publishing to queue: {event['repo']} run {event['run_id']}")
+        publish_failure_event(event)
+        return {"status": "queued"}
+    else:
+        logger.info(f"No RABBITMQ_URL set, processing inline: {event['repo']} run {event['run_id']}")
+        summary = await analyze_failure(event["repo"], event["run_id"])
+        save_failure(
+            repo=event["repo"], run_id=event["run_id"],
+            workflow_name=event["workflow_name"], run_url=event["run_url"],
+            summary=summary,
+        )
+        return {"status": "analyzed", "summary": summary}
 
 @app.get("/failures")
 def list_failures():

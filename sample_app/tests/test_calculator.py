@@ -7,6 +7,5 @@ from calculator import add, divide
 def test_add():
     assert add(2, 3) == 5
 
-def test_divide_temporary_check():
-    # TEMPORARY: deliberately wrong, just to verify the deployed webhook end-to-end
-    assert divide(10, 2) == 999
+def test_divide():
+    assert divide(10, 2) == 5.0
